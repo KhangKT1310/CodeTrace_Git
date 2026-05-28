@@ -1,0 +1,11 @@
+src/**
+tsconfig.json
+.gitignore
+README.draft.md
+node_modules/**
+!node_modules/*
+!dist/**
+!resources/**
+!README.md
+!package.json
+!LICENSE

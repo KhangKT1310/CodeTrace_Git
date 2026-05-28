@@ -1,0 +1,57 @@
+const cp = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const rootDir = path.resolve(__dirname, '..');
+const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codetrace-git-'));
+const outputFile = path.join(rootDir, 'codetrace-git-0.0.1.vsix');
+const vsceBin = path.join(rootDir, 'node_modules', '.bin', 'vsce');
+
+function copyDirectory(source, destination) {
+  fs.mkdirSync(destination, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    const sourcePath = path.join(source, entry.name);
+    const destinationPath = path.join(destination, entry.name);
+
+    if (entry.isDirectory()) {
+      copyDirectory(sourcePath, destinationPath);
+    } else {
+      fs.copyFileSync(sourcePath, destinationPath);
+    }
+  }
+}
+
+function copyIfPresent(relativePath) {
+  const sourcePath = path.join(rootDir, relativePath);
+  if (!fs.existsSync(sourcePath)) {
+    return;
+  }
+
+  const destinationPath = path.join(stagingDir, relativePath);
+  const stats = fs.statSync(sourcePath);
+  if (stats.isDirectory()) {
+    copyDirectory(sourcePath, destinationPath);
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+  fs.copyFileSync(sourcePath, destinationPath);
+}
+
+try {
+  copyIfPresent('dist');
+  copyIfPresent('resources');
+  copyIfPresent('README.md');
+  copyIfPresent('LICENSE');
+  copyIfPresent('LICENSE.md');
+  copyIfPresent('.vscodeignore');
+  copyIfPresent('package.json');
+
+  cp.execFileSync(vsceBin, ['package', '--no-dependencies', '--out', outputFile], {
+    cwd: stagingDir,
+    stdio: 'inherit'
+  });
+} finally {
+  fs.rmdirSync(stagingDir, { recursive: true });
+}
