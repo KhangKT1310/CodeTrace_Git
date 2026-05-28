@@ -1,21 +1,23 @@
 import * as vscode from 'vscode';
-import { GitGraphCommit } from '../models/git';
+import { GitBranch, GitGraphCommit } from '../models/git';
 
 const LANE_COLORS = [
-  '#f97316',
-  '#38bdf8',
+  '#9ca3af',
+  '#ec4899',
+  '#0ea5e9',
   '#22c55e',
-  '#e879f9',
-  '#facc15',
-  '#fb7185',
-  '#a78bfa',
-  '#14b8a6'
+  '#f59e0b',
+  '#8b5cf6',
+  '#14b8a6',
+  '#f97316'
 ];
 
 export function renderCommitGraphHtml(
   webview: vscode.Webview,
   repositoryRoot: string,
-  commits: GitGraphCommit[]
+  commits: GitGraphCommit[],
+  branches: GitBranch[],
+  hasWorkingTreeChanges: boolean
 ): string {
   const nonce = String(Date.now());
   const serializedCommits = JSON.stringify(commits.map(commit => ({
@@ -26,19 +28,33 @@ export function renderCommitGraphHtml(
     summary: commit.summary,
     body: commit.body ?? '',
     refs: commit.refs ?? '',
-    graphHtml: renderGraphHtml(commit.graph)
+    graphSvg: renderGraphSvg(commit.graph)
   })));
+  const serializedBranches = JSON.stringify(branches);
 
-  const rows = commits.map((commit, index) => `
-    <button class="row${index === 0 ? ' is-selected' : ''}" data-index="${index}" data-hash="${escapeHtml(commit.hash)}">
-      <span class="graph">${renderGraphHtml(commit.graph)}</span>
-      <span class="summary">
-        <span class="title">${escapeHtml(commit.summary)}</span>
-        <span class="meta">${escapeHtml(commit.shortHash)} • ${escapeHtml(commit.author)} • ${escapeHtml(formatDate(commit.date))}</span>
-        ${commit.refs ? `<span class="refs">${escapeHtml(commit.refs)}</span>` : ''}
-      </span>
-    </button>
-  `).join('');
+  const branchOptions = [
+    { label: 'Show All', value: '*' },
+    ...branches.map(branch => ({ label: branch.name, value: branch.name }))
+  ]
+    .map(option => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+    .join('');
+
+  const dirtyRow = hasWorkingTreeChanges
+    ? `
+      <button class="row row-dirty" data-index="-1" data-hash="working-tree" data-refs="">
+        <span class="cell graph-cell">${renderDirtyGraphSvg()}</span>
+        <span class="cell description-cell">
+          <span class="title">Uncommitted Changes</span>
+          <span class="subtle">Working tree contains staged or unstaged changes.</span>
+        </span>
+        <span class="cell date-cell">${escapeHtml(formatDate(new Date().toISOString()))} *</span>
+        <span class="cell author-cell">*</span>
+        <span class="cell commit-cell">*</span>
+      </button>
+    `
+    : '';
+
+  const rows = commits.map((commit, index) => renderRow(commit, index)).join('');
 
   return `<!DOCTYPE html>
   <html lang="en">
@@ -49,331 +65,469 @@ export function renderCommitGraphHtml(
       <title>Commit Graph</title>
       <style>
         :root {
-          --border: rgba(128, 128, 128, 0.18);
-          --surface: rgba(128, 128, 128, 0.06);
-          --surface-strong: rgba(128, 128, 128, 0.12);
-          --muted: var(--vscode-descriptionForeground);
-          --shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+          --bg: #23251f;
+          --panel: #2a2c25;
+          --panel-2: #30322a;
+          --line: rgba(255, 255, 255, 0.12);
+          --line-soft: rgba(255, 255, 255, 0.06);
+          --text: #f5f5f4;
+          --muted: #b4b4af;
+          --muted-2: #8c8c86;
+          --selected: rgba(255, 255, 255, 0.08);
+          --hover: rgba(255, 255, 255, 0.04);
         }
         * { box-sizing: border-box; }
-        body {
-          margin: 0;
-          color: var(--vscode-foreground);
-          background:
-            radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 25%),
-            radial-gradient(circle at top right, rgba(249, 115, 22, 0.08), transparent 25%),
-            var(--vscode-editor-background);
-          font-family: var(--vscode-font-family);
+        html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--vscode-font-family); }
+        body { min-height: 100vh; }
+        .topbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 0 12px 0 0;
+          border-bottom: 1px solid var(--line);
+          background: #1f211c;
         }
-        .shell {
-          display: grid;
-          grid-template-columns: minmax(420px, 1.8fr) minmax(320px, 1fr);
-          min-height: 100vh;
-        }
-        .left {
-          border-right: 1px solid var(--border);
-          min-width: 0;
-        }
-        .header {
-          position: sticky;
-          top: 0;
-          z-index: 2;
-          padding: 16px 18px 14px;
-          backdrop-filter: blur(10px);
-          background: color-mix(in srgb, var(--vscode-editor-background) 82%, transparent);
-          border-bottom: 1px solid var(--border);
-        }
-        .eyebrow {
+        .tab {
           display: inline-flex;
-          padding: 6px 10px;
-          border-radius: 999px;
-          background: rgba(249, 115, 22, 0.14);
-          color: #fdba74;
-          font-size: 11px;
+          align-items: center;
+          gap: 10px;
+          min-height: 42px;
+          padding: 0 14px;
+          border-right: 1px solid var(--line-soft);
+          background: #24261f;
           font-weight: 700;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
         }
-        .header h1 {
-          margin: 10px 0 6px;
-          font-size: 18px;
+        .tab-mark {
+          display: inline-grid;
+          grid-template-columns: repeat(2, 5px);
+          gap: 2px;
         }
-        .header p {
-          margin: 0;
+        .tab-mark span:nth-child(1) { background: #0ea5e9; }
+        .tab-mark span:nth-child(2) { background: #ec4899; }
+        .tab-mark span:nth-child(3) { background: #22c55e; }
+        .tab-mark span:nth-child(4) { background: #f59e0b; }
+        .tab-mark span {
+          width: 5px;
+          height: 5px;
+          border-radius: 1px;
+          display: block;
+        }
+        .toolbar {
+          flex: 1;
+          display: grid;
+          grid-template-columns: auto minmax(240px, 420px) auto auto auto auto auto auto;
+          gap: 10px;
+          align-items: center;
+          padding: 10px 0;
+        }
+        .toolbar label {
           font-size: 12px;
+          font-weight: 700;
+          color: var(--text);
+          justify-self: end;
+        }
+        .toolbar select,
+        .toolbar input {
+          width: 100%;
+          min-width: 0;
+          height: 30px;
+          padding: 0 10px;
+          border: 1px solid var(--line);
+          border-radius: 6px;
+          background: var(--panel);
+          color: var(--text);
+          font: inherit;
+        }
+        .toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--text);
+          white-space: nowrap;
+        }
+        .icon-btn {
+          width: 28px;
+          height: 28px;
+          border: 1px solid transparent;
+          border-radius: 6px;
+          background: transparent;
           color: var(--muted);
-          word-break: break-all;
+          cursor: pointer;
+          font: inherit;
+        }
+        .icon-btn:hover {
+          border-color: var(--line);
+          background: var(--hover);
+          color: var(--text);
+        }
+        .repo-path {
+          display: none;
+        }
+        .table {
+          width: 100%;
+        }
+        .header-row,
+        .row {
+          display: grid;
+          grid-template-columns: 136px minmax(420px, 1fr) 118px 110px 84px;
+          align-items: stretch;
+        }
+        .header-row {
+          position: sticky;
+          top: 42px;
+          z-index: 2;
+          background: #252720;
+          border-bottom: 1px solid var(--line);
+        }
+        .header-row span {
+          padding: 8px 10px;
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--text);
         }
         .rows {
-          padding: 10px;
+          width: 100%;
         }
         .row {
           width: 100%;
-          display: grid;
-          grid-template-columns: 150px minmax(0, 1fr);
-          gap: 12px;
-          align-items: start;
-          padding: 12px 12px;
-          margin-bottom: 8px;
-          border: 1px solid transparent;
-          border-radius: 14px;
+          margin: 0;
+          padding: 0;
+          border: 0;
+          border-bottom: 1px solid transparent;
           background: transparent;
           color: inherit;
           text-align: left;
           cursor: pointer;
         }
         .row:hover {
-          background: var(--surface);
-          border-color: var(--border);
+          background: var(--hover);
         }
         .row.is-selected {
-          background: var(--surface);
-          border-color: rgba(56, 189, 248, 0.35);
-          box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.12);
+          background: var(--selected);
         }
-        .graph {
-          white-space: pre;
-          font-family: var(--vscode-editor-font-family);
-          font-size: 12px;
-          line-height: 1.2;
-          padding-top: 2px;
-        }
-        .lane {
-          display: inline-block;
-          width: 1ch;
-          text-align: center;
-          font-weight: 700;
-        }
-        .summary {
+        .cell {
           min-width: 0;
+          padding: 6px 10px;
+          display: flex;
+          align-items: center;
+        }
+        .graph-cell {
+          justify-content: flex-start;
+          padding-left: 6px;
+          overflow: hidden;
+        }
+        .graph-cell svg {
           display: block;
+          overflow: visible;
         }
-        .title {
+        .description-cell {
           display: block;
-          font-size: 13px;
-          font-weight: 700;
-          margin-bottom: 4px;
+          padding-top: 5px;
+          padding-bottom: 5px;
         }
-        .meta,
-        .refs {
-          display: block;
-          color: var(--muted);
-          font-size: 12px;
-        }
-        .refs {
-          margin-top: 5px;
-        }
-        .right {
-          padding: 18px;
-          background: linear-gradient(180deg, rgba(128, 128, 128, 0.04), transparent);
-        }
-        .detail-card {
-          position: sticky;
-          top: 18px;
-          padding: 18px;
-          border: 1px solid var(--border);
-          border-radius: 20px;
-          background: var(--surface);
-          box-shadow: var(--shadow);
-        }
-        .detail-card h2 {
-          margin: 0 0 10px;
-          font-size: 19px;
-          line-height: 1.25;
-        }
-        .detail-meta {
-          display: grid;
-          gap: 10px;
-          margin-bottom: 16px;
-        }
-        .detail-meta-item {
-          padding: 10px 12px;
-          border-radius: 14px;
-          border: 1px solid var(--border);
-          background: rgba(128, 128, 128, 0.05);
-        }
-        .detail-meta-item span {
-          display: block;
-          color: var(--muted);
-          font-size: 11px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          margin-bottom: 4px;
-        }
-        .detail-meta-item strong {
-          font-size: 13px;
-          line-height: 1.45;
-          word-break: break-word;
-        }
-        .message {
-          padding: 12px 14px;
-          border-radius: 16px;
-          border: 1px solid var(--border);
-          background: rgba(128, 128, 128, 0.05);
-          margin-bottom: 14px;
-        }
-        .message h3,
-        .patch h3 {
-          margin: 0 0 8px;
-          font-size: 12px;
-          color: var(--muted);
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-        }
-        .message p {
-          margin: 0;
-          white-space: pre-wrap;
-          line-height: 1.55;
-          font-size: 13px;
-        }
-        .refs-inline {
+        .ref-line {
           display: flex;
           flex-wrap: wrap;
-          gap: 8px;
-          margin-top: 12px;
+          gap: 6px;
+          min-height: 20px;
+          margin-bottom: 1px;
         }
         .ref-pill {
           display: inline-flex;
-          padding: 5px 9px;
-          border-radius: 999px;
-          background: rgba(56, 189, 248, 0.12);
-          color: #7dd3fc;
+          align-items: center;
+          gap: 6px;
+          height: 20px;
+          padding: 0 8px;
+          border-radius: 5px;
           font-size: 11px;
+          line-height: 20px;
           font-weight: 700;
+          color: #121212;
+          white-space: nowrap;
         }
-        .patch button {
-          width: 100%;
-          border: 0;
-          border-radius: 14px;
-          padding: 12px 14px;
-          font: inherit;
-          font-weight: 700;
-          cursor: pointer;
-          color: #0f172a;
-          background: linear-gradient(135deg, #38bdf8, #f97316);
+        .ref-pill::before {
+          content: '⎇';
+          font-size: 10px;
+          opacity: 0.9;
         }
-        .patch button:hover {
-          filter: brightness(1.05);
+        .ref-pill.local { background: #f59e0b; }
+        .ref-pill.remote { background: #22c55e; }
+        .ref-pill.tag { background: #0ea5e9; }
+        .ref-pill.head { background: #ec4899; }
+        .title {
+          display: block;
+          font-size: 13px;
+          line-height: 1.35;
+          color: var(--text);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
-        @media (max-width: 980px) {
-          .shell { grid-template-columns: 1fr; }
-          .left { border-right: 0; border-bottom: 1px solid var(--border); }
-          .detail-card { position: static; }
+        .subtle {
+          display: block;
+          margin-top: 1px;
+          font-size: 12px;
+          color: var(--muted-2);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .date-cell,
+        .author-cell,
+        .commit-cell {
+          font-size: 12px;
+          color: var(--text);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .commit-cell {
+          font-family: var(--vscode-editor-font-family);
+        }
+        .footer {
+          position: sticky;
+          bottom: 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 12px;
+          border-top: 1px solid var(--line);
+          background: #1f211c;
+          color: var(--muted);
+          font-size: 12px;
+        }
+        .footer strong {
+          color: var(--text);
+        }
+        @media (max-width: 1200px) {
+          .toolbar {
+            grid-template-columns: 1fr;
+            padding-right: 10px;
+          }
+          .toolbar label {
+            justify-self: start;
+          }
         }
       </style>
     </head>
     <body>
-      <div class="shell">
-        <section class="left">
-          <div class="header">
-            <div class="eyebrow">Commit Graph</div>
-            <h1>History Overview</h1>
-            <p>${escapeHtml(repositoryRoot)}</p>
-          </div>
-          <div class="rows">${rows}</div>
-        </section>
-        <aside class="right">
-          <div class="detail-card">
-            <h2 id="detail-title">Select a commit</h2>
-            <div class="detail-meta">
-              <div class="detail-meta-item">
-                <span>Commit</span>
-                <strong id="detail-hash">-</strong>
-              </div>
-              <div class="detail-meta-item">
-                <span>Author</span>
-                <strong id="detail-author">-</strong>
-              </div>
-              <div class="detail-meta-item">
-                <span>Date</span>
-                <strong id="detail-date">-</strong>
-              </div>
-            </div>
-            <div class="message">
-              <h3>Message</h3>
-              <p id="detail-message">Select a commit on the left to inspect it here.</p>
-              <div class="refs-inline" id="detail-refs"></div>
-            </div>
-            <div class="patch">
-              <h3>Patch</h3>
-              <button id="open-patch" type="button">Open Full Commit Details</button>
-            </div>
-          </div>
-        </aside>
+      <div class="topbar">
+        <div class="tab">
+          <span class="tab-mark"><span></span><span></span><span></span><span></span></span>
+          <span>Git Graph</span>
+        </div>
+        <div class="toolbar">
+          <label for="branch-filter">Branches:</label>
+          <select id="branch-filter">${branchOptions}</select>
+          <label class="toggle">
+            <input id="show-remote" type="checkbox" checked />
+            <span>Show Remote Branches</span>
+          </label>
+          <button class="icon-btn" id="search-toggle" title="Search">⌕</button>
+          <input id="search" type="text" placeholder="Search commits..." />
+          <button class="icon-btn" id="open-details" title="Open Commit Details">↗</button>
+          <button class="icon-btn" id="refresh-graph" title="Refresh">↻</button>
+          <button class="icon-btn" id="copy-hash" title="Copy Commit Hash">⧉</button>
+        </div>
+      </div>
+      <div class="table">
+        <div class="header-row">
+          <span>Graph</span>
+          <span>Description</span>
+          <span>Date</span>
+          <span>Author</span>
+          <span>Commit</span>
+        </div>
+        <div class="rows">${dirtyRow}${rows}</div>
+      </div>
+      <div class="footer">
+        <span><strong id="selected-summary">Select a commit</strong></span>
+        <span id="selected-meta">${escapeHtml(repositoryRoot)}</span>
       </div>
       <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         const commits = ${serializedCommits};
+        const branches = ${serializedBranches};
         const rows = Array.from(document.querySelectorAll('.row'));
-        const detailTitle = document.getElementById('detail-title');
-        const detailHash = document.getElementById('detail-hash');
-        const detailAuthor = document.getElementById('detail-author');
-        const detailDate = document.getElementById('detail-date');
-        const detailMessage = document.getElementById('detail-message');
-        const detailRefs = document.getElementById('detail-refs');
-        const openPatch = document.getElementById('open-patch');
-        let selectedIndex = 0;
+        const branchFilter = document.getElementById('branch-filter');
+        const showRemote = document.getElementById('show-remote');
+        const searchInput = document.getElementById('search');
+        const selectedSummary = document.getElementById('selected-summary');
+        const selectedMeta = document.getElementById('selected-meta');
+        const openDetails = document.getElementById('open-details');
+        const refreshGraph = document.getElementById('refresh-graph');
+        const copyHash = document.getElementById('copy-hash');
+        let selectedIndex = commits.length > 0 ? 0 : -1;
 
-        function renderDetail(index) {
-          const commit = commits[index];
-          if (!commit) {
+        function renderSelection(index) {
+          selectedIndex = index;
+          rows.forEach(row => row.classList.toggle('is-selected', Number(row.dataset.index) === index));
+
+          if (index < 0) {
+            selectedSummary.textContent = 'Uncommitted Changes';
+            selectedMeta.textContent = 'Working tree contains local changes.';
             return;
           }
 
-          selectedIndex = index;
-          rows.forEach((row, rowIndex) => row.classList.toggle('is-selected', rowIndex === index));
-          detailTitle.textContent = commit.summary || '(no summary)';
-          detailHash.textContent = commit.shortHash + '  ' + commit.hash;
-          detailAuthor.textContent = commit.author;
-          detailDate.textContent = new Date(commit.date).toLocaleString();
-          detailMessage.textContent = (commit.body && commit.body.trim()) || commit.summary || '(no message)';
-          detailRefs.innerHTML = '';
-
-          if (commit.refs) {
-            commit.refs.split(',').map(part => part.trim()).filter(Boolean).forEach(ref => {
-              const pill = document.createElement('span');
-              pill.className = 'ref-pill';
-              pill.textContent = ref;
-              detailRefs.appendChild(pill);
-            });
+          const commit = commits[index];
+          if (!commit) {
+            selectedSummary.textContent = 'Select a commit';
+            selectedMeta.textContent = '${escapeJs(repositoryRoot)}';
+            return;
           }
+
+          selectedSummary.textContent = commit.summary || '(no summary)';
+          selectedMeta.textContent = [commit.shortHash, commit.author, formatDate(commit.date)].filter(Boolean).join(' • ');
         }
 
-        rows.forEach((row, index) => {
-          row.addEventListener('click', () => renderDetail(index));
-          row.addEventListener('dblclick', () => {
-            vscode.postMessage({ type: 'openCommit', hash: commits[index].hash });
-          });
-        });
+        function applyFilters() {
+          const branchValue = branchFilter.value.toLowerCase();
+          const allowRemote = showRemote.checked;
+          const searchTerm = searchInput.value.trim().toLowerCase();
 
-        openPatch.addEventListener('click', () => {
+          rows.forEach(row => {
+            const index = Number(row.dataset.index);
+            if (index < 0) {
+              row.hidden = false;
+              return;
+            }
+
+            const commit = commits[index];
+            const refs = (commit.refs || '').toLowerCase();
+            const hasRemoteRef = refs.includes('origin/') || refs.includes('remotes/');
+            const branchMatch = branchValue === '*' || refs.includes(branchValue);
+            const remoteMatch = allowRemote || !hasRemoteRef;
+            const searchMatch = !searchTerm
+              || commit.summary.toLowerCase().includes(searchTerm)
+              || commit.author.toLowerCase().includes(searchTerm)
+              || commit.shortHash.toLowerCase().includes(searchTerm)
+              || commit.hash.toLowerCase().includes(searchTerm)
+              || refs.includes(searchTerm);
+
+            row.hidden = !(branchMatch && remoteMatch && searchMatch);
+          });
+        }
+
+        function openSelectedCommit() {
+          if (selectedIndex < 0) {
+            return;
+          }
           const commit = commits[selectedIndex];
           if (!commit) {
             return;
           }
           vscode.postMessage({ type: 'openCommit', hash: commit.hash });
+        }
+
+        function copySelectedHash() {
+          if (selectedIndex < 0) {
+            return;
+          }
+          const commit = commits[selectedIndex];
+          if (!commit) {
+            return;
+          }
+          vscode.postMessage({ type: 'copyHash', hash: commit.hash });
+        }
+
+        rows.forEach(row => {
+          row.addEventListener('click', () => renderSelection(Number(row.dataset.index)));
+          row.addEventListener('dblclick', () => openSelectedCommit());
         });
 
-        renderDetail(0);
+        branchFilter.addEventListener('change', applyFilters);
+        showRemote.addEventListener('change', applyFilters);
+        searchInput.addEventListener('input', applyFilters);
+        openDetails.addEventListener('click', openSelectedCommit);
+        refreshGraph.addEventListener('click', () => vscode.postMessage({ type: 'refreshGraph' }));
+        copyHash.addEventListener('click', copySelectedHash);
+
+        applyFilters();
+        renderSelection(selectedIndex);
       </script>
     </body>
   </html>`;
 }
 
-function renderGraphHtml(graph: string): string {
-  let html = '';
+function renderRow(commit: GitGraphCommit, index: number): string {
+  const refs = commit.refs ?? '';
+  return `
+    <button class="row${index === 0 ? ' is-selected' : ''}" data-index="${index}" data-hash="${escapeHtml(commit.hash)}" data-refs="${escapeHtml(refs)}">
+      <span class="cell graph-cell">${renderGraphSvg(commit.graph)}</span>
+      <span class="cell description-cell">
+        ${refs ? `<span class="ref-line">${refs.split(',').map(ref => renderRefBadge(ref.trim())).join('')}</span>` : '<span class="ref-line"></span>'}
+        <span class="title">${escapeHtml(commit.summary)}</span>
+        ${(commit.body || '').trim() ? `<span class="subtle">${escapeHtml((commit.body || '').split('\n')[0])}</span>` : ''}
+      </span>
+      <span class="cell date-cell">${escapeHtml(formatDate(commit.date))}</span>
+      <span class="cell author-cell">${escapeHtml(commit.author)}</span>
+      <span class="cell commit-cell">${escapeHtml(commit.shortHash)}</span>
+    </button>
+  `;
+}
+
+function renderGraphSvg(graph: string): string {
+  const laneSpacing = 16;
+  const leftPad = 10;
+  const top = 18;
+  const height = 36;
+  const lanes = Math.max(1, Math.ceil(graph.length / 2));
+  const width = leftPad * 2 + lanes * laneSpacing;
+  const pieces: string[] = [];
+
   for (let index = 0; index < graph.length; index += 1) {
     const character = graph[index];
     if (character === ' ') {
-      html += ' ';
       continue;
     }
 
-    const laneIndex = Math.floor(index / 2) % LANE_COLORS.length;
-    html += `<span class="lane" style="color:${LANE_COLORS[laneIndex]}">${escapeHtml(character)}</span>`;
+    const lane = Math.floor(index / 2);
+    const x = leftPad + lane * laneSpacing;
+    const color = LANE_COLORS[lane % LANE_COLORS.length];
+
+    if (character === '|') {
+      pieces.push(`<line x1="${x}" y1="1" x2="${x}" y2="${height - 1}" stroke="${color}" stroke-width="2.2" stroke-linecap="round" />`);
+    } else if (character === '*') {
+      pieces.push(`<line x1="${x}" y1="1" x2="${x}" y2="${height - 1}" stroke="${color}" stroke-width="2.2" stroke-linecap="round" opacity="0.72" />`);
+      pieces.push(`<circle cx="${x}" cy="${top}" r="4.2" fill="${color}" />`);
+    } else if (character === '/') {
+      pieces.push(`<path d="M ${x + laneSpacing / 2} 4 Q ${x} ${top - 4} ${x - laneSpacing / 2} ${height - 4}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" />`);
+    } else if (character === '\\') {
+      pieces.push(`<path d="M ${x - laneSpacing / 2} 4 Q ${x} ${top - 4} ${x + laneSpacing / 2} ${height - 4}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" />`);
+    } else if (character === '_') {
+      pieces.push(`<line x1="${x}" y1="${top}" x2="${x + laneSpacing}" y2="${top}" stroke="${color}" stroke-width="2.2" stroke-linecap="round" />`);
+    } else {
+      pieces.push(`<circle cx="${x}" cy="${top}" r="2.2" fill="${color}" opacity="0.85" />`);
+    }
   }
-  return html;
+
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="commit graph row">${pieces.join('')}</svg>`;
+}
+
+function renderDirtyGraphSvg(): string {
+  return `
+    <svg width="64" height="36" viewBox="0 0 64 36" role="img" aria-label="working tree">
+      <line x1="16" y1="2" x2="16" y2="34" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" />
+      <circle cx="16" cy="18" r="4.8" fill="#f59e0b" />
+    </svg>
+  `;
+}
+
+function renderRefBadge(ref: string): string {
+  const normalized = ref.replace(/^tag:\s*/i, '');
+  const lower = normalized.toLowerCase();
+  const kind = lower === 'head'
+    ? 'head'
+    : lower.startsWith('origin/') || lower.startsWith('remotes/')
+      ? 'remote'
+      : /^v?\d/.test(lower)
+        ? 'tag'
+        : 'local';
+  return `<span class="ref-pill ${kind}">${escapeHtml(normalized)}</span>`;
 }
 
 function escapeHtml(value: string): string {
@@ -385,7 +539,20 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+function escapeJs(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 function formatDate(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const day = date.getDate();
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${day} ${month} ${year} ${hours}:${minutes}`;
 }

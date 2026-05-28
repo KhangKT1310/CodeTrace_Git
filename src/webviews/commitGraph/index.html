@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src {{CSP_SOURCE}} https: data:; style-src {{CSP_SOURCE}}; script-src 'nonce-{{NONCE}}';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="{{STYLE_URI}}" />
+    <title>Git Graph</title>
+  </head>
+  <body>
+    <div id="app" class="app">
+      <header class="toolbar">
+        <div class="toolbar__group">
+          <label class="toolbar__label" for="branch-filter">Branches:</label>
+          <select id="branch-filter" class="toolbar__select"></select>
+          <label class="toolbar__toggle">
+            <input id="show-remote" type="checkbox" />
+            <span>Show Remote Branches</span>
+          </label>
+        </div>
+        <div class="toolbar__group toolbar__group--actions">
+          <div class="search">
+            <span class="search__icon" aria-hidden="true">⌕</span>
+            <input id="search" class="search__input" type="search" placeholder="Search commits" />
+          </div>
+          <button id="refresh" class="icon-button" title="Refresh" aria-label="Refresh">↻</button>
+          <button id="settings" class="icon-button" title="Settings" aria-label="Settings">⚙</button>
+        </div>
+      </header>
+
+      <section class="content" aria-label="Git graph">
+        <div class="table-header" role="row">
+          <div class="cell cell--graph">Graph</div>
+          <div class="cell cell--description">Description</div>
+          <div class="cell cell--date">Date</div>
+          <div class="cell cell--author">Author</div>
+          <div class="cell cell--commit">Commit</div>
+        </div>
+        <div id="error" class="state hidden" role="alert"></div>
+        <div id="loading" class="state hidden">Loading commit graph…</div>
+        <div id="rows" class="rows" role="grid" aria-label="Commit graph rows" tabindex="0"></div>
+      </section>
+
+      <aside id="details" class="details hidden" aria-label="Commit details">
+        <div class="details__header">
+          <div class="details__title">Commit Details</div>
+          <button id="details-open" class="icon-button" title="Open full patch" aria-label="Open full patch">↗</button>
+        </div>
+        <div id="details-empty" class="details__empty">Select a commit to inspect details.</div>
+        <div id="details-body" class="details__body hidden">
+          <section class="details__meta">
+            <div><strong>Commit:</strong> <span id="detail-hash"></span></div>
+            <div><strong>Parents:</strong> <span id="detail-parents"></span></div>
+            <div><strong>Author:</strong> <span id="detail-author"></span></div>
+            <div><strong>Committer:</strong> <span id="detail-committer"></span></div>
+            <div><strong>Date:</strong> <span id="detail-date"></span></div>
+          </section>
+          <section class="details__message">
+            <div id="detail-subject" class="details__subject"></div>
+            <pre id="detail-body-text" class="details__body-text"></pre>
+          </section>
+          <section class="details__files">
+            <div class="details__files-header">
+              <span>Changed Files</span>
+              <span id="detail-stats"></span>
+            </div>
+            <div id="detail-files" class="details__files-list"></div>
+          </section>
+        </div>
+      </aside>
+    </div>
+
+    <script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
+  </body>
+</html>

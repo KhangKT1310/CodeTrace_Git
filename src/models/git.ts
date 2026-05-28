@@ -52,6 +52,77 @@ export interface GitGraphCommit extends GitCommit {
   refs?: string;
 }
 
+export interface GitRefBadge {
+  name: string;
+  type: 'local' | 'remote' | 'tag' | 'head' | 'stash' | 'other';
+}
+
+export interface CommitGraphSegment {
+  lane: number;
+  color: string;
+  part: 'full' | 'top' | 'bottom';
+}
+
+export interface CommitGraphConnector {
+  fromLane: number;
+  toLane: number;
+  color: string;
+  kind: 'flow' | 'merge';
+}
+
+export interface CommitGraphRow {
+  lane: number;
+  color: string;
+  laneCount: number;
+  segments: CommitGraphSegment[];
+  connectors: CommitGraphConnector[];
+}
+
+export interface CommitGraphCommit {
+  hash: string;
+  shortHash: string;
+  parents: string[];
+  authorName: string;
+  authorEmail: string;
+  date: string;
+  relativeDate?: string;
+  refs: GitRefBadge[];
+  subject: string;
+  body?: string;
+  graph: CommitGraphRow;
+}
+
+export interface CommitGraphPayload {
+  repoRoot: string;
+  currentBranch: string | null;
+  branches: string[];
+  hasWorkingTreeChanges: boolean;
+  workingTreeChanges: GitStatusFile[];
+  commits: CommitGraphCommit[];
+}
+
+export interface CommitGraphChangedFile {
+  path: string;
+  status: string;
+  additions?: number;
+  deletions?: number;
+}
+
+export interface CommitGraphCommitDetail {
+  hash: string;
+  shortHash: string;
+  subject: string;
+  body: string;
+  authorName: string;
+  authorEmail: string;
+  committerName: string;
+  committerEmail: string;
+  date: string;
+  parents: string[];
+  files: CommitGraphChangedFile[];
+  statsSummary?: string;
+}
+
 export interface GitWorktree {
   path: string;
   head?: string;

@@ -24,6 +24,7 @@
   "activationEvents": [
     "onStartupFinished",
     "onView:openGitInsight.fileHistory",
+    "onView:openGitInsight.commitGraph",
     "onView:openGitInsight.branches",
     "onView:openGitInsight.status",
     "onView:openGitInsight.references",
@@ -41,6 +42,7 @@
     "onCommand:openGitInsight.discardStatusFile",
     "onCommand:openGitInsight.diffStatusFile",
     "onCommand:openGitInsight.showCommitGraph",
+    "onCommand:codeTraceGit.showCommitGraph",
     "onCommand:openGitInsight.refreshWorktrees",
     "onCommand:openGitInsight.openWorktree",
     "onCommand:openGitInsight.copyWorktreePath",
@@ -65,6 +67,10 @@
         {
           "id": "openGitInsight.fileHistory",
           "name": "File History"
+        },
+        {
+          "id": "openGitInsight.commitGraph",
+          "name": "Commit Graph"
         },
         {
           "id": "openGitInsight.branches",
@@ -142,6 +148,10 @@
         "title": "Open Git Insight: Show Commit Graph"
       },
       {
+        "command": "codeTraceGit.showCommitGraph",
+        "title": "CodeTrace Git: Show Commit Graph"
+      },
+      {
         "command": "openGitInsight.refreshWorktrees",
         "title": "Open Git Insight: Refresh Worktrees"
       },
@@ -180,6 +190,11 @@
         {
           "command": "openGitInsight.refreshFileHistory",
           "when": "view == openGitInsight.fileHistory",
+          "group": "navigation"
+        },
+        {
+          "command": "codeTraceGit.showCommitGraph",
+          "when": "view == openGitInsight.commitGraph",
           "group": "navigation"
         },
         {
@@ -267,7 +282,7 @@
           "group": "navigation"
         },
         {
-          "command": "openGitInsight.showCommitGraph",
+          "command": "codeTraceGit.showCommitGraph",
           "when": "resourceScheme == file",
           "group": "navigation"
         }
@@ -309,6 +324,23 @@
           "maximum": 1000,
           "description": "Maximum number of commits to render in the commit graph."
         },
+        "codeTraceGit.commitGraph.maxCommits": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 1,
+          "maximum": 5000,
+          "description": "Maximum number of commits to load for the Git Graph webview."
+        },
+        "codeTraceGit.commitGraph.showRemoteBranches": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show remote branches and remote ref badges in the Git Graph webview."
+        },
+        "codeTraceGit.commitGraph.defaultBranchFilter": {
+          "type": "string",
+          "default": "show all",
+          "description": "Default branch filter for the Git Graph webview."
+        },
         "openGitInsight.ai.provider": {
           "type": "string",
           "enum": [
@@ -337,7 +369,7 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
+    "compile": "tsc -p ./ && node ./scripts/prepare-webviews.js",
     "watch": "tsc -watch -p ./",
     "package": "node ./scripts/package-vsix.js"
   },

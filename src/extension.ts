@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { BranchProvider } from './providers/branchProvider';
 import { BlameHoverProvider } from './providers/blameHoverProvider';
+import { CommitGraphLauncherProvider } from './providers/commitGraphLauncherProvider';
 import { GitInsightCodeLensProvider } from './providers/codeLensProvider';
 import { CommitDetailsProvider } from './providers/commitDetailsProvider';
 import { FileBlameProvider } from './providers/fileBlameProvider';
@@ -12,17 +13,20 @@ import { StatusFileItem, StatusProvider } from './providers/statusProvider';
 import { VirtualDocumentProvider } from './providers/virtualDocumentProvider';
 import { WorktreeItem, WorktreeProvider } from './providers/worktreeProvider';
 import { GitCommit } from './models/git';
+import { CommitGraphService } from './git/commitGraphService';
+import { GitCommandError, GitService } from './git/gitService';
 import { AIService } from './services/aiService';
 import { RepositoryController } from './services/repositoryController';
-import { GitCommandError, GitService } from './services/gitService';
-import { renderCommitGraphHtml } from './webviews/commitGraphWebview';
+import { CommitGraphPanel } from './webviews/commitGraph/commitGraphPanel';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const gitService = new GitService();
+  const commitGraphService = new CommitGraphService(gitService);
   const aiService = new AIService();
   const repositoryController = new RepositoryController(context, gitService);
   const inlineBlame = new InlineBlameController(gitService);
   const fileHistoryProvider = new FileHistoryProvider(gitService);
+  const commitGraphLauncherProvider = new CommitGraphLauncherProvider();
   const branchProvider = new BranchProvider(gitService, repositoryController);
   const statusProvider = new StatusProvider(gitService, repositoryController);
   const referenceProvider = new ReferenceProvider(gitService, repositoryController);
@@ -45,6 +49,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.languages.registerHoverProvider({ scheme: 'file' }, new BlameHoverProvider(gitService)),
     vscode.languages.registerCodeLensProvider({ scheme: 'file' }, codeLensProvider),
     vscode.window.registerTreeDataProvider('openGitInsight.fileHistory', fileHistoryProvider),
+    vscode.window.registerTreeDataProvider('openGitInsight.commitGraph', commitGraphLauncherProvider),
     vscode.window.registerTreeDataProvider('openGitInsight.branches', branchProvider),
     vscode.window.registerTreeDataProvider('openGitInsight.status', statusProvider),
     vscode.window.registerTreeDataProvider('openGitInsight.references', referenceProvider),
@@ -66,7 +71,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await repositoryController.pickRepository();
     }),
     vscode.commands.registerCommand('openGitInsight.showCommitGraph', async () => {
-      await showCommitGraph(context, gitService, repositoryController, commitDetailsProvider);
+      await CommitGraphPanel.show(context, gitService, commitGraphService, repositoryController, commitDetailsProvider);
+    }),
+    vscode.commands.registerCommand('codeTraceGit.showCommitGraph', async () => {
+      await CommitGraphPanel.show(context, gitService, commitGraphService, repositoryController, commitDetailsProvider);
     }),
     vscode.commands.registerCommand('openGitInsight.showCommitDetails', async (item?: CommitReference) => {
       await showCommitDetails(gitService, commitDetailsProvider, item);
@@ -165,54 +173,6 @@ async function showCommitDetails(
       preview: true,
       viewColumn: vscode.ViewColumn.Beside
     });
-  } catch (error) {
-    void vscode.window.showWarningMessage(toDisplayMessage(error));
-  }
-}
-
-async function showCommitGraph(
-  context: vscode.ExtensionContext,
-  gitService: GitService,
-  repositoryController: RepositoryController,
-  provider: CommitDetailsProvider
-): Promise<void> {
-  const repositoryRoot = await repositoryController.getRepositoryRootForActiveEditor();
-  if (!repositoryRoot) {
-    void vscode.window.showInformationMessage('Open or select a repository to view the commit graph.');
-    return;
-  }
-
-  try {
-    const maxCommits = vscode.workspace.getConfiguration('openGitInsight.graph').get<number>('maxCommits', 150);
-    const commits = await gitService.getCommitGraph(repositoryRoot, maxCommits);
-    const panel = vscode.window.createWebviewPanel(
-      'openGitInsight.commitGraph',
-      'Commit Graph',
-      vscode.ViewColumn.Beside,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true
-      }
-    );
-
-    panel.webview.html = renderCommitGraphHtml(panel.webview, repositoryRoot, commits);
-    panel.webview.onDidReceiveMessage(async message => {
-      if (message?.type !== 'openCommit' || typeof message.hash !== 'string') {
-        return;
-      }
-
-      const commit = await gitService.getCommit(repositoryRoot, message.hash);
-      if (!commit) {
-        return;
-      }
-
-      const fileUri = vscode.window.activeTextEditor?.document.uri ?? vscode.Uri.file(repositoryRoot);
-      await showCommitDetails(gitService, provider, {
-        commit,
-        fileUri,
-        repositoryRoot
-      });
-    }, undefined, context.subscriptions);
   } catch (error) {
     void vscode.window.showWarningMessage(toDisplayMessage(error));
   }
