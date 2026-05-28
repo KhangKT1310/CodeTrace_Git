@@ -25,9 +25,29 @@
     "onStartupFinished",
     "onView:openGitInsight.fileHistory",
     "onView:openGitInsight.branches",
+    "onView:openGitInsight.status",
+    "onView:openGitInsight.references",
+    "onView:openGitInsight.worktrees",
     "onCommand:openGitInsight.refreshFileHistory",
     "onCommand:openGitInsight.showCommitDetails",
-    "onCommand:openGitInsight.compareWithPrevious"
+    "onCommand:openGitInsight.compareWithPrevious",
+    "onCommand:openGitInsight.showFileBlame",
+    "onCommand:openGitInsight.searchCommits",
+    "onCommand:openGitInsight.switchRepository",
+    "onCommand:openGitInsight.openFileAtRevision",
+    "onCommand:openGitInsight.showSelectionHistory",
+    "onCommand:openGitInsight.stageStatusFile",
+    "onCommand:openGitInsight.unstageStatusFile",
+    "onCommand:openGitInsight.discardStatusFile",
+    "onCommand:openGitInsight.diffStatusFile",
+    "onCommand:openGitInsight.showCommitGraph",
+    "onCommand:openGitInsight.refreshWorktrees",
+    "onCommand:openGitInsight.openWorktree",
+    "onCommand:openGitInsight.copyWorktreePath",
+    "onCommand:openGitInsight.addWorktree",
+    "onCommand:openGitInsight.removeWorktree",
+    "onCommand:openGitInsight.generateCommitMessage",
+    "onCommand:openGitInsight.explainStagedDiff"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -49,10 +69,26 @@
         {
           "id": "openGitInsight.branches",
           "name": "Branches"
+        },
+        {
+          "id": "openGitInsight.status",
+          "name": "Status"
+        },
+        {
+          "id": "openGitInsight.references",
+          "name": "References"
+        },
+        {
+          "id": "openGitInsight.worktrees",
+          "name": "Worktrees"
         }
       ]
     },
     "commands": [
+      {
+        "command": "openGitInsight.switchRepository",
+        "title": "Open Git Insight: Switch Repository"
+      },
       {
         "command": "openGitInsight.refreshFileHistory",
         "title": "Open Git Insight: Refresh File History"
@@ -68,13 +104,92 @@
       {
         "command": "openGitInsight.copyCommitHash",
         "title": "Open Git Insight: Copy Commit Hash"
+      },
+      {
+        "command": "openGitInsight.showFileBlame",
+        "title": "Open Git Insight: Show File Blame"
+      },
+      {
+        "command": "openGitInsight.searchCommits",
+        "title": "Open Git Insight: Search Commits"
+      },
+      {
+        "command": "openGitInsight.openFileAtRevision",
+        "title": "Open Git Insight: Open File At Revision"
+      },
+      {
+        "command": "openGitInsight.showSelectionHistory",
+        "title": "Open Git Insight: Show Line or Selection History"
+      },
+      {
+        "command": "openGitInsight.stageStatusFile",
+        "title": "Open Git Insight: Stage File"
+      },
+      {
+        "command": "openGitInsight.unstageStatusFile",
+        "title": "Open Git Insight: Unstage File"
+      },
+      {
+        "command": "openGitInsight.discardStatusFile",
+        "title": "Open Git Insight: Discard Changes"
+      },
+      {
+        "command": "openGitInsight.diffStatusFile",
+        "title": "Open Git Insight: Diff With HEAD"
+      },
+      {
+        "command": "openGitInsight.showCommitGraph",
+        "title": "Open Git Insight: Show Commit Graph"
+      },
+      {
+        "command": "openGitInsight.refreshWorktrees",
+        "title": "Open Git Insight: Refresh Worktrees"
+      },
+      {
+        "command": "openGitInsight.openWorktree",
+        "title": "Open Git Insight: Open Worktree"
+      },
+      {
+        "command": "openGitInsight.copyWorktreePath",
+        "title": "Open Git Insight: Copy Worktree Path"
+      },
+      {
+        "command": "openGitInsight.addWorktree",
+        "title": "Open Git Insight: Add Worktree"
+      },
+      {
+        "command": "openGitInsight.removeWorktree",
+        "title": "Open Git Insight: Remove Worktree"
+      },
+      {
+        "command": "openGitInsight.generateCommitMessage",
+        "title": "Open Git Insight: Generate AI Commit Message"
+      },
+      {
+        "command": "openGitInsight.explainStagedDiff",
+        "title": "Open Git Insight: Explain Staged Diff"
       }
     ],
     "menus": {
       "view/title": [
         {
+          "command": "openGitInsight.switchRepository",
+          "when": "view == openGitInsight.branches || view == openGitInsight.status || view == openGitInsight.references || view == openGitInsight.worktrees",
+          "group": "navigation"
+        },
+        {
           "command": "openGitInsight.refreshFileHistory",
           "when": "view == openGitInsight.fileHistory",
+          "group": "navigation"
+        },
+        {
+          "command": "openGitInsight.refreshWorktrees",
+          "when": "view == openGitInsight.worktrees",
+          "group": "navigation"
+        },
+        {
+          "command": "openGitInsight.addWorktree",
+          "when": "view == openGitInsight.worktrees",
           "group": "navigation"
         }
       ],
@@ -93,11 +208,66 @@
           "command": "openGitInsight.copyCommitHash",
           "when": "view == openGitInsight.fileHistory && viewItem == commit",
           "group": "inline"
+        },
+        {
+          "command": "openGitInsight.diffStatusFile",
+          "when": "view == openGitInsight.status && viewItem == status-file",
+          "group": "inline"
+        },
+        {
+          "command": "openGitInsight.stageStatusFile",
+          "when": "view == openGitInsight.status && viewItem == status-file",
+          "group": "inline"
+        },
+        {
+          "command": "openGitInsight.unstageStatusFile",
+          "when": "view == openGitInsight.status && viewItem == status-file",
+          "group": "inline"
+        },
+        {
+          "command": "openGitInsight.discardStatusFile",
+          "when": "view == openGitInsight.status && viewItem == status-file",
+          "group": "inline"
+        },
+        {
+          "command": "openGitInsight.openWorktree",
+          "when": "view == openGitInsight.worktrees && viewItem == worktree",
+          "group": "inline"
+        },
+        {
+          "command": "openGitInsight.copyWorktreePath",
+          "when": "view == openGitInsight.worktrees && viewItem == worktree",
+          "group": "inline"
+        },
+        {
+          "command": "openGitInsight.removeWorktree",
+          "when": "view == openGitInsight.worktrees && viewItem == worktree",
+          "group": "inline"
         }
       ],
       "editor/title": [
         {
           "command": "openGitInsight.compareWithPrevious",
+          "when": "resourceScheme == file",
+          "group": "navigation"
+        },
+        {
+          "command": "openGitInsight.showFileBlame",
+          "when": "resourceScheme == file",
+          "group": "navigation"
+        },
+        {
+          "command": "openGitInsight.openFileAtRevision",
+          "when": "resourceScheme == file",
+          "group": "navigation"
+        },
+        {
+          "command": "openGitInsight.showSelectionHistory",
+          "when": "resourceScheme == file",
+          "group": "navigation"
+        },
+        {
+          "command": "openGitInsight.showCommitGraph",
           "when": "resourceScheme == file",
           "group": "navigation"
         }
@@ -126,6 +296,42 @@
           "minimum": 1,
           "maximum": 500,
           "description": "Maximum number of history entries to load for the active file."
+        },
+        "openGitInsight.codeLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Git insight CodeLens annotations for document symbols."
+        },
+        "openGitInsight.graph.maxCommits": {
+          "type": "number",
+          "default": 150,
+          "minimum": 20,
+          "maximum": 1000,
+          "description": "Maximum number of commits to render in the commit graph."
+        },
+        "openGitInsight.ai.provider": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "custom"
+          ],
+          "default": "ollama",
+          "description": "AI provider used for commit message and diff explanation."
+        },
+        "openGitInsight.ai.endpoint": {
+          "type": "string",
+          "default": "http://127.0.0.1:11434/api/generate",
+          "description": "HTTP endpoint for the configured AI provider."
+        },
+        "openGitInsight.ai.model": {
+          "type": "string",
+          "default": "llama3.1",
+          "description": "Model name passed to the AI provider."
+        },
+        "openGitInsight.ai.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Optional bearer token for custom AI endpoints."
         }
       }
     }

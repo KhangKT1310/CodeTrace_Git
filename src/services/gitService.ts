@@ -2,12 +2,36 @@ import { execFile } from 'child_process';
 import * as path from 'path';
 import { promisify } from 'util';
 import * as vscode from 'vscode';
-import { GitBlameLine, GitBranch, GitCommit, RepositoryContext } from '../models/git';
+import { GitBlameLine, GitBranch, GitCommit, GitGraphCommit, GitRemote, GitStash, GitStatusFile, GitTag, GitWorktree, RepositoryContext } from '../models/git';
 
 const execFileAsync = promisify(execFile);
 const LOG_DELIMITER = '\u001f';
 
 export class GitService {
+  async getWorkspaceRepositories(): Promise<RepositoryContext[]> {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    const repositories = new Map<string, RepositoryContext>();
+
+    for (const folder of folders) {
+      try {
+        const root = (await this.runGit(['rev-parse', '--show-toplevel'], folder.uri.fsPath)).trim();
+        repositories.set(root, { root, relativePath: '.' });
+      } catch (_error) {
+        continue;
+      }
+    }
+
+    const activeUri = vscode.window.activeTextEditor?.document.uri;
+    if (activeUri?.scheme === 'file') {
+      const repository = await this.getRepositoryContext(activeUri);
+      if (repository) {
+        repositories.set(repository.root, { root: repository.root, relativePath: '.' });
+      }
+    }
+
+    return [...repositories.values()].sort((left, right) => left.root.localeCompare(right.root));
+  }
+
   async getRepositoryContext(uri: vscode.Uri): Promise<RepositoryContext | undefined> {
     if (uri.scheme !== 'file') {
       return undefined;
@@ -43,7 +67,7 @@ export class GitService {
 
   async getFileHistory(uri: vscode.Uri, maxCommits: number): Promise<GitCommit[]> {
     const repository = await this.getRequiredRepositoryContext(uri);
-    const format = ['%H', '%h', '%an', '%ae', '%ad', '%s', '%P'].join(LOG_DELIMITER);
+    const format = ['%H', '%h', '%an', '%ae', '%ad', '%s', '%b', '%P'].join(LOG_DELIMITER);
     const output = await this.runGit(
       [
         'log',
@@ -61,7 +85,7 @@ export class GitService {
       .split('\n')
       .filter(Boolean)
       .map(line => {
-        const [hash, shortHash, author, authorEmail, date, summary, parents] = line.split(LOG_DELIMITER);
+        const [hash, shortHash, author, authorEmail, date, summary, body, parents] = line.split(LOG_DELIMITER);
         return {
           hash,
           shortHash,
@@ -69,6 +93,7 @@ export class GitService {
           authorEmail,
           date,
           summary,
+          body,
           previousHash: parents?.split(' ')[0]
         };
       });
@@ -96,9 +121,246 @@ export class GitService {
       });
   }
 
+  async getTags(repositoryRoot: string): Promise<GitTag[]> {
+    const output = await this.runGit(
+      ['tag', '--list', '--format=%(refname:short)' + LOG_DELIMITER + '%(objectname:short)'],
+      repositoryRoot
+    );
+
+    return output
+      .split('\n')
+      .filter(Boolean)
+      .map(line => {
+        const [name, target] = line.split(LOG_DELIMITER);
+        return { name, target };
+      });
+  }
+
+  async getStashes(repositoryRoot: string): Promise<GitStash[]> {
+    const output = await this.runGit(
+      ['stash', 'list', `--format=%gd${LOG_DELIMITER}%gs`],
+      repositoryRoot
+    );
+
+    return output
+      .split('\n')
+      .filter(Boolean)
+      .map(line => {
+        const [ref, summary] = line.split(LOG_DELIMITER);
+        const branchMatch = summary.match(/^On ([^:]+):\s*(.*)$/);
+        return {
+          ref,
+          summary: branchMatch ? branchMatch[2] : summary,
+          branch: branchMatch?.[1]
+        };
+      });
+  }
+
+  async getRemotes(repositoryRoot: string): Promise<GitRemote[]> {
+    const output = await this.runGit(['remote', '-v'], repositoryRoot);
+    const remotes = new Map<string, GitRemote>();
+
+    for (const line of output.split('\n').filter(Boolean)) {
+      const match = line.match(/^(\S+)\s+(\S+)\s+\((fetch|push)\)$/);
+      if (!match) {
+        continue;
+      }
+
+      const [, name, url, type] = match;
+      const remote = remotes.get(name) ?? { name };
+      if (type === 'fetch') {
+        remote.fetchUrl = url;
+      } else {
+        remote.pushUrl = url;
+      }
+      remotes.set(name, remote);
+    }
+
+    return [...remotes.values()];
+  }
+
+  async getWorkingTreeStatus(repositoryRoot: string): Promise<GitStatusFile[]> {
+    const output = await this.runGit(['status', '--short', '--untracked-files=all'], repositoryRoot);
+
+    return output
+      .split('\n')
+      .map(line => line.trimEnd())
+      .filter(Boolean)
+      .map(line => {
+        const indexStatus = line[0] ?? ' ';
+        const workingTreeStatus = line[1] ?? ' ';
+        const filePath = line.slice(3).trim();
+        return {
+          path: filePath,
+          indexStatus,
+          workingTreeStatus,
+          staged: indexStatus !== ' ' && indexStatus !== '?',
+          untracked: indexStatus === '?' || workingTreeStatus === '?'
+        };
+      });
+  }
+
+  async searchCommits(repositoryRoot: string, query: string, maxResults: number): Promise<GitCommit[]> {
+    const format = ['%H', '%h', '%an', '%ae', '%ad', '%s', '%b', '%P'].join(LOG_DELIMITER);
+    const outputs: string[] = [];
+    const seen = new Set<string>();
+
+    const appendResults = (content: string): void => {
+      for (const commit of this.parseCommits(content)) {
+        if (seen.has(commit.hash)) {
+          continue;
+        }
+        seen.add(commit.hash);
+        outputs.push([
+          commit.hash,
+          commit.shortHash,
+          commit.author,
+          commit.authorEmail ?? '',
+          commit.date,
+          commit.summary,
+          commit.body ?? '',
+          commit.previousHash ?? ''
+        ].join(LOG_DELIMITER));
+      }
+    };
+
+    try {
+      appendResults(await this.runGit(
+        ['log', `-n${maxResults}`, '--date=iso', `--format=${format}`, '--all', '--grep', query],
+        repositoryRoot
+      ));
+    } catch (_error) {}
+
+    try {
+      appendResults(await this.runGit(
+        ['log', `-n${maxResults}`, '--date=iso', `--format=${format}`, '--all', '--author', query],
+        repositoryRoot
+      ));
+    } catch (_error) {}
+
+    if (query.length >= 4) {
+      try {
+        appendResults(await this.runGit(
+          ['log', `-n${maxResults}`, '--date=iso', `--format=${format}`, '--all', query],
+          repositoryRoot
+        ));
+      } catch (_error) {}
+    }
+
+    return this.parseCommits(outputs.join('\n')).slice(0, maxResults);
+  }
+
+  async getCommit(repositoryRoot: string, commitHash: string): Promise<GitCommit | undefined> {
+    const format = ['%H', '%h', '%an', '%ae', '%ad', '%s', '%b', '%P'].join(LOG_DELIMITER);
+    const output = await this.runGit(
+      ['log', '-n1', '--date=iso', `--format=${format}`, commitHash],
+      repositoryRoot
+    );
+    return this.parseCommits(output)[0];
+  }
+
+  async getCommitGraph(repositoryRoot: string, maxCommits: number): Promise<GitGraphCommit[]> {
+    const format = ['%H', '%h', '%an', '%ad', '%s', '%b', '%D'].join(LOG_DELIMITER);
+    const output = await this.runGit(
+      [
+        'log',
+        '--graph',
+        '--decorate=short',
+        '--all',
+        `-n${maxCommits}`,
+        '--date=iso',
+        `--format=${format}`
+      ],
+      repositoryRoot
+    );
+
+    return output
+      .split('\n')
+      .filter(Boolean)
+      .map(line => {
+        const delimiterIndex = line.indexOf(LOG_DELIMITER);
+        if (delimiterIndex === -1) {
+          return undefined;
+        }
+
+        const graph = line.slice(0, delimiterIndex);
+        const payload = line.slice(delimiterIndex + 1);
+        const [hash, shortHash, author, date, summary, body, refs] = payload.split(LOG_DELIMITER);
+        if (!hash || !shortHash || !author || !date || !summary) {
+          return undefined;
+        }
+        return {
+          hash,
+          shortHash,
+          author,
+          date,
+          summary,
+          body,
+          refs,
+          graph
+        } as GitGraphCommit;
+      })
+      .filter((commit): commit is GitGraphCommit => Boolean(commit));
+  }
+
+  async getWorktrees(repositoryRoot: string): Promise<GitWorktree[]> {
+    const output = await this.runGit(['worktree', 'list', '--porcelain'], repositoryRoot);
+    const blocks = output.split('\n\n').map(block => block.trim()).filter(Boolean);
+
+    return blocks.map(block => {
+      const worktree: GitWorktree = {
+        path: '',
+        bare: false,
+        detached: false
+      };
+
+      for (const line of block.split('\n')) {
+        if (line.startsWith('worktree ')) {
+          worktree.path = line.slice('worktree '.length).trim();
+        } else if (line.startsWith('HEAD ')) {
+          worktree.head = line.slice('HEAD '.length).trim();
+        } else if (line.startsWith('branch ')) {
+          worktree.branch = line.slice('branch refs/heads/'.length).trim();
+        } else if (line === 'bare') {
+          worktree.bare = true;
+        } else if (line === 'detached') {
+          worktree.detached = true;
+        } else if (line.startsWith('locked')) {
+          worktree.locked = line.slice('locked'.length).trim();
+        } else if (line.startsWith('prunable')) {
+          worktree.prunable = line.slice('prunable'.length).trim();
+        }
+      }
+
+      return worktree;
+    });
+  }
+
+  async getFileBlameDocument(uri: vscode.Uri): Promise<string> {
+    const repository = await this.getRequiredRepositoryContext(uri);
+    const output = await this.runGit(
+      ['blame', '--date=iso', '--', repository.relativePath],
+      repository.root
+    );
+    return output;
+  }
+
+  async getBlameForLine(uri: vscode.Uri, lineNumber: number): Promise<GitBlameLine | undefined> {
+    const blame = await this.getBlame(uri);
+    return blame.get(lineNumber);
+  }
+
   async getFileContentAtRevision(uri: vscode.Uri, revision: string): Promise<string> {
     const repository = await this.getRequiredRepositoryContext(uri);
     return this.runGit(['show', `${revision}:${repository.relativePath}`], repository.root);
+  }
+
+  async getFileContentAtRevisionByRepository(
+    repositoryRoot: string,
+    relativePath: string,
+    revision: string
+  ): Promise<string> {
+    return this.runGit(['show', `${revision}:${relativePath}`], repositoryRoot);
   }
 
   async getPreviousRevision(uri: vscode.Uri, commitHash?: string): Promise<string | undefined> {
@@ -110,6 +372,47 @@ export class GitService {
 
     const history = await this.getFileHistory(uri, 2);
     return history[1]?.hash;
+  }
+
+  async getLineHistory(uri: vscode.Uri, startLine: number, endLine: number): Promise<string> {
+    const repository = await this.getRequiredRepositoryContext(uri);
+    return this.runGit(
+      ['log', '--date=iso', '-L', `${startLine},${endLine}:${repository.relativePath}`],
+      repository.root
+    );
+  }
+
+  async stageFile(repositoryRoot: string, filePath: string): Promise<void> {
+    await this.runGit(['add', '--', filePath], repositoryRoot);
+  }
+
+  async unstageFile(repositoryRoot: string, filePath: string): Promise<void> {
+    await this.runGit(['reset', 'HEAD', '--', filePath], repositoryRoot);
+  }
+
+  async discardFile(repositoryRoot: string, filePath: string): Promise<void> {
+    await this.runGit(['checkout', '--', filePath], repositoryRoot);
+  }
+
+  async addWorktree(repositoryRoot: string, worktreePath: string, branchName?: string): Promise<void> {
+    const args = ['worktree', 'add', worktreePath];
+    if (branchName) {
+      args.push('-b', branchName);
+    }
+    await this.runGit(args, repositoryRoot);
+  }
+
+  async removeWorktree(repositoryRoot: string, worktreePath: string, force = false): Promise<void> {
+    const args = ['worktree', 'remove'];
+    if (force) {
+      args.push('--force');
+    }
+    args.push(worktreePath);
+    await this.runGit(args, repositoryRoot);
+  }
+
+  async getStagedDiff(repositoryRoot: string): Promise<string> {
+    return this.runGit(['diff', '--cached'], repositoryRoot);
   }
 
   async runGit(args: string[], cwd: string): Promise<string> {
@@ -219,6 +522,25 @@ export class GitService {
     }
 
     return blameByLine;
+  }
+
+  private parseCommits(output: string): GitCommit[] {
+    return output
+      .split('\n')
+      .filter(Boolean)
+      .map(line => {
+        const [hash, shortHash, author, authorEmail, date, summary, body, parents] = line.split(LOG_DELIMITER);
+        return {
+          hash,
+          shortHash,
+          author,
+          authorEmail,
+          date,
+          summary,
+          body,
+          previousHash: parents?.split(' ')[0]
+        };
+      });
   }
 
   private toUserMessage(message: string): string {

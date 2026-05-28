@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeTrace_Git Roadmap</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: rgba(15, 23, 42, 0.78);
+      --panel-strong: rgba(15, 23, 42, 0.92);
+      --line: rgba(148, 163, 184, 0.22);
+      --text: #e5eefb;
+      --muted: #94a3b8;
+      --accent: #f97316;
+      --accent-soft: rgba(249, 115, 22, 0.18);
+      --green: #22c55e;
+      --green-soft: rgba(34, 197, 94, 0.14);
+      --blue: #38bdf8;
+      --blue-soft: rgba(56, 189, 248, 0.14);
+      --pink: #f472b6;
+      --pink-soft: rgba(244, 114, 182, 0.14);
+      --shadow: 0 24px 70px rgba(2, 8, 23, 0.45);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "IBM Plex Sans", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 30%),
+        radial-gradient(circle at top right, rgba(249, 115, 22, 0.16), transparent 28%),
+        linear-gradient(160deg, #020617 0%, #0f172a 52%, #111827 100%);
+    }
+
+    .shell {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 32px auto 56px;
+    }
+
+    .hero {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.86), rgba(15, 23, 42, 0.72));
+      border-radius: 28px;
+      padding: 32px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #fdba74;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 18px 0 10px;
+      font-size: clamp(34px, 5vw, 62px);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    .subhead {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.65;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 26px;
+    }
+
+    .meta-card {
+      padding: 18px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(15, 23, 42, 0.56);
+    }
+
+    .meta-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .meta-card strong {
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 22px;
+    }
+
+    .tier {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      overflow: hidden;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .tier-header {
+      padding: 22px 22px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .tier-header h2 {
+      margin: 0 0 10px;
+      font-size: 28px;
+    }
+
+    .tier-header p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .mvp .badge.primary {
+      background: var(--green-soft);
+      color: #86efac;
+    }
+
+    .mvpp .badge.primary {
+      background: var(--blue-soft);
+      color: #7dd3fc;
+    }
+
+    .advanced .badge.primary {
+      background: var(--pink-soft);
+      color: #f9a8d4;
+    }
+
+    .badge.secondary {
+      background: rgba(148, 163, 184, 0.12);
+      color: #cbd5e1;
+    }
+
+    .section {
+      padding: 20px 22px 22px;
+    }
+
+    .section+.section {
+      border-top: 1px solid var(--line);
+    }
+
+    .section h3 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #cbd5e1;
+    }
+
+    ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    li {
+      padding: 12px 0;
+      border-top: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    li:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .item-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 5px;
+    }
+
+    .item-title strong {
+      font-size: 15px;
+    }
+
+    .tag {
+      flex: 0 0 auto;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .tag.low {
+      background: var(--green-soft);
+      color: #86efac;
+    }
+
+    .tag.medium {
+      background: var(--blue-soft);
+      color: #7dd3fc;
+    }
+
+    .tag.high {
+      background: var(--pink-soft);
+      color: #f9a8d4;
+    }
+
+    li p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .footer {
+      margin-top: 22px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--panel-strong);
+      padding: 24px;
+    }
+
+    .footer h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+    }
+
+    .footer p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .footer ul {
+      margin-top: 16px;
+    }
+
+    @media (max-width: 980px) {
+
+      .grid,
+      .meta {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">CodeTrace_Git Roadmap</div>
+      <h1>Git insight roadmap for the first public release.</h1>
+      <p class="subhead">
+        The goal is to ship a clean <code>.vsix</code>-installable extension powered by the local
+        Git CLI, delivered in 3 layers so complexity does not arrive too early: MVP to ship,
+        MVP+ to improve usability, and Advanced for power-user capabilities.
+      </p>
+
+      <div class="meta">
+        <div class="meta-card">
+          <span>Delivery Strategy</span>
+          <strong>Ship small, iterate fast</strong>
+        </div>
+        <div class="meta-card">
+          <span>Core Backend</span>
+          <strong>Local Git CLI</strong>
+        </div>
+        <div class="meta-card">
+          <span>Main UI</span>
+          <strong>TreeView + Decorations</strong>
+        </div>
+        <div class="meta-card">
+          <span>Heavy UI</span>
+          <strong>Webview only when needed</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="tier mvp">
+        <header class="tier-header">
+          <div class="badges">
+            <span class="badge primary">Phase 1</span>
+            <span class="badge secondary">Ship First</span>
+          </div>
+          <h2>MVP</h2>
+          <p>The first release should be strong enough for daily use in a normal Git repository.</p>
+        </header>
+
+        <div class="section">
+          <h3>Must Have</h3>
+          <ul>
+            <li>
+              <div class="item-title">
+                <strong>Inline Blame</strong>
+                <span class="tag low">Low</span>
+              </div>
+              <p>Show the last commit that changed the current line, with current-line or all-lines modes.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>File Blame</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Show full-file blame with line mapping for audit and debugging workflows.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Line Hover</strong>
+                <span class="tag low">Low</span>
+              </div>
+              <p>Show author, date, commit hash, and commit message when hovering a line.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>CodeLens</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Show recent commit insight above important functions or classes.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>File History</strong>
+                <span class="tag low">Low</span>
+              </div>
+              <p>Provide a sidebar view for the active file history, capped by a configurable commit limit.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Commit Details</strong>
+                <span class="tag low">Low</span>
+              </div>
+              <p>Show author, message, changed files, patch, and stat in a readonly document or lightweight webview.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Compare With Previous</strong>
+                <span class="tag low">Low</span>
+              </div>
+              <p>Compare the current file with the previous revision for quick diff review.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Branch List</strong>
+                <span class="tag low">Low</span>
+              </div>
+              <p>Show local and remote branches in a sidebar view.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Commit Search</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Search commits by message, author, short hash, or full hash.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Status Panel</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Show changed, staged, and untracked files so users can read the working tree state quickly.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Easy Install</strong>
+                <span class="tag low">Low</span>
+              </div>
+              <p>Package a <code>.vsix</code> that can be installed from the command line or VS Code UI.</p>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section">
+          <h3>Exit Criteria</h3>
+          <ul>
+            <li>
+              <p>Compile cleanly with TypeScript, work in normal Git repositories, and avoid GitLens dependencies or
+                third-party branding.</p>
+            </li>
+            <li>
+              <p>Handle files outside Git repositories, missing Git on PATH, renamed files in history, and basic CLI
+                failures gracefully.</p>
+            </li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="tier mvpp">
+        <header class="tier-header">
+          <div class="badges">
+            <span class="badge primary">Phase 2</span>
+            <span class="badge secondary">Usability</span>
+          </div>
+          <h2>MVP+</h2>
+          <p>This phase improves usability for larger repositories and more complex workspaces.</p>
+        </header>
+
+        <div class="section">
+          <h3>Priority Features</h3>
+          <ul>
+            <li>
+              <div class="item-title">
+                <strong>Repo Switcher</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Let users choose the active repository clearly when the workspace contains multiple Git roots.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Open File At Revision</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Open a file at a specific commit so users can read historical code without leaving the editor.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Line / Selection History</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Trace the history of a single line or selected block instead of only the whole file.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Stash / Tags / Remotes</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Add important Git lists so the extension becomes more practical in real repositories.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Status Actions</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Allow opening diffs from the status panel and stage, unstage, or discard actions at file level.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Peek Diff Preview</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Show diff previews inside the editor without requiring a full diff tab every time.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Blame UX Controls</strong>
+                <span class="tag low">Low</span>
+              </div>
+              <p>Add quick toggles, relative dates, short hashes, caching, and throttling for large files.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Diagnostics & Safeguards</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Improve timeouts, pagination, binary file handling, repo state detection, and user-facing error
+                guidance.</p>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section">
+          <h3>Outcome</h3>
+          <ul>
+            <li>
+              <p>Users should be able to navigate file history, repository state, and revisions without dropping into
+                the terminal constantly.</p>
+            </li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="tier advanced">
+        <header class="tier-header">
+          <div class="badges">
+            <span class="badge primary">Phase 3</span>
+            <span class="badge secondary">Power Features</span>
+          </div>
+          <h2>Advanced</h2>
+          <p>This phase contains more complex features that need heavier UI and stronger guardrails before wide release.
+          </p>
+        </header>
+
+        <div class="section">
+          <h3>High-Value Features</h3>
+          <ul>
+            <li>
+              <div class="item-title">
+                <strong>Commit Graph</strong>
+                <span class="tag high">High</span>
+              </div>
+              <p>Build a webview graph with node layout, branch decoration, commit selection, and jump-to-details
+                support.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Visual File History</strong>
+                <span class="tag high">High</span>
+              </div>
+              <p>Create a timeline UI for each file with revision navigation, author context, and diff preview.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Worktree Manager</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Manage <code>git worktree</code> operations such as add, list, open, remove, and prune inside VS Code.
+              </p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Interactive Rebase UI</strong>
+                <span class="tag high">High</span>
+              </div>
+              <p>Edit rebase plans safely with a todo list UI, conflict state visibility, and rollback guidance.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>PR Review Panel</strong>
+                <span class="tag high">High</span>
+              </div>
+              <p>Integrate GitHub or GitLab APIs for review workflows, comments, checks, and metadata.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>AI Commit Message</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Generate commit messages from staged diffs using local, Ollama, OpenAI, or custom API providers.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>AI Commit Explanation</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Explain the meaning of a commit or diff to speed up review and code understanding.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Changelog Generator</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Group commits by scope, tag, or conventional commit style to generate changelogs.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Conflict Assistant</strong>
+                <span class="tag high">High</span>
+              </div>
+              <p>Help users read merge conflicts, explain root causes, and suggest resolution paths.</p>
+            </li>
+            <li>
+              <div class="item-title">
+                <strong>Repository Dashboard</strong>
+                <span class="tag medium">Medium</span>
+              </div>
+              <p>Provide an overview of branches, remotes, recent commits, ahead/behind state, and repository health.
+              </p>
+            </li>
+          </ul>
+        </div>
+
+        <div class="section">
+          <h3>Rule</h3>
+          <ul>
+            <li>
+              <p>Only build Advanced features after caching, error handling, multi-repo behavior, and performance are
+                stable in MVP+.</p>
+            </li>
+          </ul>
+        </div>
+      </article>
+    </section>
+
+    <section class="footer">
+      <h2>Recommended Build Order</h2>
+      <p>
+        Finish MVP completely first, then build `Repo Switcher`, `Line / Selection History`, and
+        `Status Actions`, before moving into `Commit Graph`, `Worktree Manager`, and `AI`
+        features. This order keeps the extension usable early, reduces complex UI risk, and
+        avoids spending effort on webview-heavy or external-API features before the Git CLI core
+        is stable.
+      </p>
+    </section>
+  </main>
+</body>
+
+</html>
