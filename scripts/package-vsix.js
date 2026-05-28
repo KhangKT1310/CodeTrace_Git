@@ -5,7 +5,7 @@ const path = require('path');
 
 const rootDir = path.resolve(__dirname, '..');
 const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codetrace-git-'));
-const outputFile = path.join(rootDir, 'codetrace-git-0.0.1.vsix');
+const outputFile = path.join(rootDir, 'codetrace-git-1.0.1.vsix');
 const vsceBin = path.join(rootDir, 'node_modules', '.bin', 'vsce');
 
 function copyDirectory(source, destination) {

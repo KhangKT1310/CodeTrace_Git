@@ -1,8 +1,8 @@
 {
-  "name": "codetrace-git",
-  "displayName": "CodeTrace_Git",
-  "description": "Git productivity features for VS Code powered by the local Git CLI.",
-  "version": "0.0.1",
+  "name": "codetrace-extension",
+  "displayName": "CodeTrace_Extension",
+  "description": "Visual Git history, blame, status, worktree, and commit graph tools for VS Code using your local Git CLI.",
+  "version": "1.0.1",
   "publisher": "vigorlabs",
   "repository": {
     "type": "git",
@@ -12,7 +12,18 @@
     "vscode": "^1.90.0"
   },
   "categories": [
+    "SCM Providers",
     "Other"
+  ],
+  "keywords": [
+    "git",
+    "blame",
+    "history",
+    "commit graph",
+    "worktree",
+    "diff",
+    "source control",
+    "vscode git"
   ],
   "icon": "resources/extension-icon.png",
   "files": [

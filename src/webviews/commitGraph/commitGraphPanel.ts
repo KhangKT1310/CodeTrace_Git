@@ -56,6 +56,19 @@ export class CommitGraphPanel implements vscode.Disposable {
     await CommitGraphPanel.currentPanel.updateRepository();
   }
 
+  static async refreshCurrent(options: { invalidate?: boolean } = {}): Promise<void> {
+    const panel = CommitGraphPanel.currentPanel;
+    if (!panel) {
+      return;
+    }
+
+    if (options.invalidate) {
+      panel.commitGraphService.invalidate(panel.repositoryRoot);
+    }
+
+    await panel.updateRepository(options.invalidate ?? false);
+  }
+
   private repositoryRoot: string | undefined;
   private readonly detailCache = new Map<string, CommitGraphCommitDetail>();
   private query: CommitGraphQuery = {
@@ -85,9 +98,14 @@ export class CommitGraphPanel implements vscode.Disposable {
     }
   }
 
-  private async updateRepository(): Promise<void> {
-    this.repositoryRoot = await this.repositoryController.getRepositoryRootForActiveEditor();
-    await this.loadData();
+  private async updateRepository(refresh = false): Promise<void> {
+    const nextRepositoryRoot = await this.repositoryController.getRepositoryRootForActiveEditor();
+    const repositoryChanged = nextRepositoryRoot !== this.repositoryRoot;
+    this.repositoryRoot = nextRepositoryRoot;
+    if (repositoryChanged) {
+      this.detailCache.clear();
+    }
+    await this.loadData(refresh || repositoryChanged);
   }
 
   private async handleMessage(message: CommitGraphMessage): Promise<void> {

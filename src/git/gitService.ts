@@ -474,11 +474,16 @@ export class GitService {
     await this.runGit(['checkout', '--', filePath], repositoryRoot);
   }
 
+  async discardUntrackedFile(repositoryRoot: string, filePath: string): Promise<void> {
+    await this.runGit(['clean', '-f', '--', filePath], repositoryRoot);
+  }
+
   async addWorktree(repositoryRoot: string, worktreePath: string, branchName?: string): Promise<void> {
-    const args = ['worktree', 'add', worktreePath];
+    const args = ['worktree', 'add'];
     if (branchName) {
       args.push('-b', branchName);
     }
+    args.push(worktreePath);
     await this.runGit(args, repositoryRoot);
   }
 

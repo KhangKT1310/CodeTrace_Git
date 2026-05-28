@@ -1,10 +1,33 @@
 import * as vscode from 'vscode';
 import { GitCommandError, GitService } from '../services/gitService';
 
-export class BlameHoverProvider implements vscode.HoverProvider {
+export class BlameHoverProvider implements vscode.HoverProvider, vscode.Disposable {
   private blameCache = new Map<string, ReturnType<GitService['getBlame']>>();
+  private readonly disposables: vscode.Disposable[];
 
-  constructor(private readonly gitService: GitService) {}
+  constructor(private readonly gitService: GitService) {
+    this.disposables = [
+      vscode.workspace.onDidChangeTextDocument(event => {
+        this.clearCache(event.document.uri);
+      }),
+      vscode.workspace.onDidSaveTextDocument(document => {
+        this.clearCache(document.uri);
+      }),
+      vscode.workspace.onDidCloseTextDocument(document => {
+        this.clearCache(document.uri);
+      }),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        this.blameCache.clear();
+      })
+    ];
+  }
+
+  dispose(): void {
+    this.blameCache.clear();
+    for (const disposable of this.disposables) {
+      disposable.dispose();
+    }
+  }
 
   async provideHover(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Hover | undefined> {
     if (document.uri.scheme !== 'file') {
@@ -42,6 +65,13 @@ export class BlameHoverProvider implements vscode.HoverProvider {
     const pending = this.gitService.getBlame(uri);
     this.blameCache.set(key, pending);
     return pending;
+  }
+
+  private clearCache(uri: vscode.Uri): void {
+    if (uri.scheme !== 'file') {
+      return;
+    }
+    this.blameCache.delete(uri.toString());
   }
 
   private formatDate(value: string): string {

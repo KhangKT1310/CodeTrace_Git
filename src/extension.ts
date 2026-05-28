@@ -25,6 +25,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const aiService = new AIService();
   const repositoryController = new RepositoryController(context, gitService);
   const inlineBlame = new InlineBlameController(gitService);
+  const blameHoverProvider = new BlameHoverProvider(gitService);
   const fileHistoryProvider = new FileHistoryProvider(gitService);
   const commitGraphLauncherProvider = new CommitGraphLauncherProvider();
   const branchProvider = new BranchProvider(gitService, repositoryController);
@@ -41,12 +42,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     repositoryController,
     inlineBlame,
+    blameHoverProvider,
     vscode.workspace.registerTextDocumentContentProvider(CommitDetailsProvider.scheme, commitDetailsProvider),
     vscode.workspace.registerTextDocumentContentProvider(FileBlameProvider.scheme, fileBlameProvider),
     vscode.workspace.registerTextDocumentContentProvider(revisionProvider.scheme, revisionProvider),
     vscode.workspace.registerTextDocumentContentProvider(historyProvider.scheme, historyProvider),
     vscode.workspace.registerTextDocumentContentProvider(aiProvider.scheme, aiProvider),
-    vscode.languages.registerHoverProvider({ scheme: 'file' }, new BlameHoverProvider(gitService)),
+    vscode.languages.registerHoverProvider({ scheme: 'file' }, blameHoverProvider),
     vscode.languages.registerCodeLensProvider({ scheme: 'file' }, codeLensProvider),
     vscode.window.registerTreeDataProvider('openGitInsight.fileHistory', fileHistoryProvider),
     vscode.window.registerTreeDataProvider('openGitInsight.commitGraph', commitGraphLauncherProvider),
@@ -57,12 +59,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.window.onDidChangeActiveTextEditor(() => {
       void syncActiveRepository(repositoryController, gitService);
       refreshRepoViews(fileHistoryProvider, branchProvider, statusProvider, referenceProvider, worktreeProvider, codeLensProvider, inlineBlame);
+      void CommitGraphPanel.refreshCurrent();
     }),
     vscode.workspace.onDidSaveTextDocument(() => {
       refreshRepoViews(fileHistoryProvider, branchProvider, statusProvider, referenceProvider, worktreeProvider, codeLensProvider, inlineBlame, true);
+      void CommitGraphPanel.refreshCurrent({ invalidate: true });
     }),
     repositoryController.onDidChangeRepository(() => {
       refreshRepoViews(fileHistoryProvider, branchProvider, statusProvider, referenceProvider, worktreeProvider, codeLensProvider, inlineBlame, true);
+      void CommitGraphPanel.refreshCurrent({ invalidate: true });
     }),
     vscode.commands.registerCommand('openGitInsight.refreshFileHistory', () => {
       refreshRepoViews(fileHistoryProvider, branchProvider, statusProvider, referenceProvider, worktreeProvider, codeLensProvider, inlineBlame, true);
@@ -193,11 +198,22 @@ async function compareWithPrevious(gitService: GitService, item?: FileHistoryIte
       return;
     }
 
+    const languageId = await resolveLanguageId(targetUri, editor);
     const previousContent = await gitService.getFileContentAtRevision(targetUri, previousRevision);
-    const leftUri = await createReadonlyContentDocument(
-      previousContent,
-      editor?.document.languageId
-    );
+    const leftUri = await createReadonlyContentDocument(previousContent, languageId);
+
+    if (item) {
+      const selectedContent = await gitService.getFileContentAtRevision(targetUri, item.commit.hash);
+      const rightUri = await createReadonlyContentDocument(selectedContent, languageId);
+
+      await vscode.commands.executeCommand(
+        'vscode.diff',
+        leftUri,
+        rightUri,
+        `${path.basename(targetUri.fsPath)}: ${previousRevision.slice(0, 8)} ↔ ${item.commit.shortHash}`
+      );
+      return;
+    }
 
     await vscode.commands.executeCommand(
       'vscode.diff',
@@ -222,6 +238,22 @@ async function createReadonlyContentDocument(
     await vscode.languages.setTextDocumentLanguage(document, languageId);
   }
   return document.uri;
+}
+
+async function resolveLanguageId(
+  targetUri: vscode.Uri,
+  editor?: vscode.TextEditor
+): Promise<string | undefined> {
+  if (editor?.document.uri.toString() === targetUri.toString()) {
+    return editor.document.languageId;
+  }
+
+  try {
+    const document = await vscode.workspace.openTextDocument(targetUri);
+    return document.languageId;
+  } catch {
+    return undefined;
+  }
 }
 
 async function getHistoryItemFromActiveLine(gitService: GitService): Promise<FileHistoryItem | undefined> {
@@ -454,7 +486,11 @@ async function discardStatusFile(
   }
 
   try {
-    await gitService.discardFile(item.repositoryRoot, item.status.path);
+    if (item.status.untracked) {
+      await gitService.discardUntrackedFile(item.repositoryRoot, item.status.path);
+    } else {
+      await gitService.discardFile(item.repositoryRoot, item.status.path);
+    }
     statusProvider.refresh();
   } catch (error) {
     void vscode.window.showWarningMessage(toDisplayMessage(error));
