@@ -1,4 +1,4 @@
-# Contributing to CodeTrace_Git
+# Contributing to CodeTrace_Extension
 
 ## Scope
 

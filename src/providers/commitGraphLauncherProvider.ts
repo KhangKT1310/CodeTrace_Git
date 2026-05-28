@@ -8,7 +8,7 @@ class CommitGraphItem extends vscode.TreeItem {
     this.iconPath = new vscode.ThemeIcon('graph');
     this.command = {
       command: 'codeTraceGit.showCommitGraph',
-      title: 'CodeTrace Git: Show Commit Graph'
+      title: 'CodeTrace Extension: Show Commit Graph'
     };
   }
 }

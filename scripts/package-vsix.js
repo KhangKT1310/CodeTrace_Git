@@ -4,8 +4,11 @@ const os = require('os');
 const path = require('path');
 
 const rootDir = path.resolve(__dirname, '..');
-const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codetrace-git-'));
-const outputFile = path.join(rootDir, 'codetrace-git-1.0.1.vsix');
+const packageJson = require(path.join(rootDir, 'package.json'));
+const extensionId = packageJson.name;
+const extensionVersion = packageJson.version;
+const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codetrace-extension-'));
+const outputFile = path.join(rootDir, `${extensionId}-${extensionVersion}.vsix`);
 const vsceBin = path.join(rootDir, 'node_modules', '.bin', 'vsce');
 
 function copyDirectory(source, destination) {

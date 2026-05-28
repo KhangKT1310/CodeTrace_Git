@@ -1,10 +1,10 @@
-# CodeTrace_Git
+# CodeTrace_Extension
 
-CodeTrace_Git is a VS Code extension for exploring repository history, blame, status, references, and worktrees directly inside VS Code.
+CodeTrace_Extension is a VS Code extension for exploring repository history, blame, status, references, and worktrees directly inside VS Code.
 
 It uses your local Git CLI, stays lightweight, and focuses on practical repo insight without depending on GitLens.
 
-## Why CodeTrace_Git
+## Why CodeTrace_Extension
 
 - Inspect file history without leaving the editor
 - View line blame inline or on hover while reading code
@@ -89,7 +89,7 @@ This creates a `.vsix` file in the project root.
 Or install from the command line:
 
 ```bash
-code --install-extension codetrace-git-1.0.1.vsix
+code --install-extension ./codetrace-extension-<version>.vsix
 ```
 
 ## Configuration

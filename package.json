@@ -2,7 +2,7 @@
   "name": "codetrace-extension",
   "displayName": "CodeTrace_Extension",
   "description": "Visual Git history, blame, status, worktree, and commit graph tools for VS Code using your local Git CLI.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "vigorlabs",
   "repository": {
     "type": "git",
@@ -161,7 +161,7 @@
       },
       {
         "command": "codeTraceGit.showCommitGraph",
-        "title": "CodeTrace Git: Show Commit Graph"
+        "title": "CodeTrace Extension: Show Commit Graph"
       },
       {
         "command": "openGitInsight.refreshWorktrees",
