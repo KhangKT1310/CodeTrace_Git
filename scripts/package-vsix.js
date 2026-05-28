@@ -53,5 +53,9 @@ try {
     stdio: 'inherit'
   });
 } finally {
-  fs.rmdirSync(stagingDir, { recursive: true });
+  if (typeof fs.rmSync === 'function') {
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+  } else {
+    fs.rmdirSync(stagingDir, { recursive: true });
+  }
 }

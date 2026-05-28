@@ -4,6 +4,10 @@
   "description": "Git productivity features for VS Code powered by the local Git CLI.",
   "version": "0.0.1",
   "publisher": "local",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KhangKT1310/CodeTrace_Git.git"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
