@@ -93,7 +93,7 @@ export class GitService {
 
   async getFileHistory(uri: vscode.Uri, maxCommits: number): Promise<GitCommit[]> {
     const repository = await this.getRequiredRepositoryContext(uri);
-    const format = ['%H', '%h', '%an', '%ae', '%ad', '%s', '%b', '%P'].join(LOG_DELIMITER);
+    const format = ['%H', '%h', '%an', '%ae', '%ad', '%s', '%b', '%P'].join(LOG_DELIMITER) + RECORD_DELIMITER;
     const output = await this.runGit(
       [
         'log',
@@ -107,22 +107,7 @@ export class GitService {
       repository.root
     );
 
-    return output
-      .split('\n')
-      .filter(Boolean)
-      .map(line => {
-        const [hash, shortHash, author, authorEmail, date, summary, body, parents] = line.split(LOG_DELIMITER);
-        return {
-          hash,
-          shortHash,
-          author,
-          authorEmail,
-          date,
-          summary,
-          body,
-          previousHash: parents?.split(' ')[0]
-        };
-      });
+    return this.parseCommits(output);
   }
 
   async getCommitDetails(repositoryRoot: string, commitHash: string): Promise<string> {
@@ -296,7 +281,7 @@ export class GitService {
   }
 
   async searchCommits(repositoryRoot: string, query: string, maxResults: number): Promise<GitCommit[]> {
-    const format = ['%H', '%h', '%an', '%ae', '%ad', '%s', '%b', '%P'].join(LOG_DELIMITER);
+    const format = ['%H', '%h', '%an', '%ae', '%ad', '%s', '%b', '%P'].join(LOG_DELIMITER) + RECORD_DELIMITER;
     const outputs: string[] = [];
     const seen = new Set<string>();
 
@@ -342,11 +327,11 @@ export class GitService {
       } catch (_error) {}
     }
 
-    return this.parseCommits(outputs.join('\n')).slice(0, maxResults);
+    return this.parseCommits(outputs.join(RECORD_DELIMITER)).slice(0, maxResults);
   }
 
   async getCommit(repositoryRoot: string, commitHash: string): Promise<GitCommit | undefined> {
-    const format = ['%H', '%h', '%an', '%ae', '%ad', '%s', '%b', '%P'].join(LOG_DELIMITER);
+    const format = ['%H', '%h', '%an', '%ae', '%ad', '%s', '%b', '%P'].join(LOG_DELIMITER) + RECORD_DELIMITER;
     const output = await this.runGit(
       ['log', '-n1', '--date=iso', `--format=${format}`, commitHash],
       repositoryRoot
@@ -632,10 +617,11 @@ export class GitService {
 
   private parseCommits(output: string): GitCommit[] {
     return output
-      .split('\n')
+      .split(RECORD_DELIMITER)
+      .map(record => record.trim())
       .filter(Boolean)
-      .map(line => {
-        const [hash, shortHash, author, authorEmail, date, summary, body, parents] = line.split(LOG_DELIMITER);
+      .map(record => {
+        const [hash, shortHash, author, authorEmail, date, summary, body, parents] = record.split(LOG_DELIMITER);
         return {
           hash,
           shortHash,
