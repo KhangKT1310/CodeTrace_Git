@@ -67,6 +67,8 @@ npm run compile
 
 Run the extension in VS Code with `F5`.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and submission expectations.
+
 ## Package a VSIX
 
 ```bash
